@@ -21,7 +21,7 @@ import java.util.concurrent.Callable;
 
 public class QueryUtil {
 
-    public static final TitanProperty queryHiddenUniqueProperty(InternalVertex vertex, TitanKey key) {
+    public static TitanProperty queryHiddenUniqueProperty(InternalVertex vertex, TitanKey key) {
         assert ((InternalType) key).isHidden() : "Expected hidden property key";
         assert key.isUnique(Direction.OUT) : "Expected functional property  type";
         return Iterables.getOnlyElement(
@@ -31,22 +31,26 @@ public class QueryUtil {
                         properties(), null);
     }
 
-    public static final Iterable<TitanRelation> queryAll(InternalVertex vertex) {
+    public static Iterable<TitanRelation> queryAll(InternalVertex vertex) {
         return vertex.query().includeHidden().relations();
     }
 
-    public static final int adjustLimitForTxModifications(StandardTitanTx tx, int uncoveredAndConditions, int limit) {
-        Preconditions.checkArgument(limit > 0 && limit <= 1000000000, "Invalid limit: %s", limit); //To make sure limit computation does not overflow
-        Preconditions.checkArgument(uncoveredAndConditions >= 0);
+    public static int adjustLimitForTxModifications(StandardTitanTx tx, int uncoveredAndConditions, int limit) {
+        assert limit > 0 && limit <= 1000000000; //To make sure limit computation does not overflow
+        assert uncoveredAndConditions >= 0;
+
         if (uncoveredAndConditions > 0) {
             int maxMultiplier = Integer.MAX_VALUE / limit;
             limit = limit * Math.min(maxMultiplier, (int) Math.pow(2, uncoveredAndConditions)); //(limit*3)/2+1;
         }
-        if (tx.hasModifications()) limit += Math.min(Integer.MAX_VALUE - limit, 5);
+
+        if (tx.hasModifications())
+            limit += Math.min(Integer.MAX_VALUE - limit, 5);
+
         return limit;
     }
 
-    private static final InternalType getType(StandardTitanTx tx, String typeName) {
+    private static InternalType getType(StandardTitanTx tx, String typeName) {
         TitanType t = tx.getType(typeName);
         if (t == null && !tx.getConfiguration().getAutoEdgeTypeMaker().ignoreUndefinedQueryTypes()) {
             throw new IllegalArgumentException("Undefined type used in query: " + typeName);
@@ -60,36 +64,46 @@ public class QueryUtil {
      * @param condition
      * @return
      */
-    public static final boolean isQueryNormalForm(Condition<?> condition) {
-        if (isQNFLiteralOrNot(condition)) return true;
-        else if (condition instanceof And) {
-            for (Condition<?> child : ((And<?>) condition).getChildren()) {
-                if (isQNFLiteralOrNot(child)) continue;
-                else if (child instanceof Or) {
-                    for (Condition<?> child2 : ((Or<?>) child).getChildren()) {
-                        if (!isQNFLiteralOrNot(child2)) return false;
-                    }
-                } else return false;
-            }
+    public static boolean isQueryNormalForm(Condition<?> condition) {
+        if (isQNFLiteralOrNot(condition))
             return true;
-        } else return false;
+
+        if (condition instanceof And) {
+            for (Condition<?> child : ((And<?>) condition).getChildren()) {
+                if (isQNFLiteralOrNot(child))
+                    continue;
+
+                if (child instanceof Or) {
+                    for (Condition<?> child2 : ((Or<?>) child).getChildren()) {
+                        if (!isQNFLiteralOrNot(child2))
+                            return false;
+                    }
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
-    private static final boolean isQNFLiteralOrNot(Condition<?> condition) {
+    private static boolean isQNFLiteralOrNot(Condition<?> condition) {
         if (condition instanceof Not) {
             Condition child = ((Not) condition).getChild();
-            if (!isQNFLiteral(child)) return false;
-            else if (child instanceof PredicateCondition) {
-                return !((PredicateCondition) child).getPredicate().hasNegation();
-            } else return true;
-        } else return isQNFLiteral(condition);
+            return isQNFLiteral(child)
+               && (!(child instanceof PredicateCondition) || !((PredicateCondition) child).getPredicate().hasNegation());
+
+        }
+
+        return isQNFLiteral(condition);
     }
 
-    private static final boolean isQNFLiteral(Condition<?> condition) {
-        if (condition.getType() != Condition.Type.LITERAL) return false;
-        if (condition instanceof PredicateCondition) {
-            return ((PredicateCondition) condition).getPredicate().isQNF();
-        } else return true;
+    private static boolean isQNFLiteral(Condition<?> condition) {
+        return condition.getType() == Condition.Type.LITERAL
+                && (!(condition instanceof PredicateCondition) || ((PredicateCondition) condition).getPredicate().isQNF());
+
     }
 
     private static final <E extends TitanElement> Condition<E> inlineNegation(Condition<E> condition) {

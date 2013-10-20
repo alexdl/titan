@@ -184,10 +184,7 @@ public class VertexCentricQueryBuilder extends AbstractVertexCentricQueryBuilder
     }
 
     public Iterable<TitanRelation> relations(RelationType returnType) {
-        VertexCentricQuery query = constructQuery(returnType);
-        QueryProcessor<VertexCentricQuery,TitanRelation,SliceQuery> processor =
-                new QueryProcessor<VertexCentricQuery,TitanRelation,SliceQuery>(query,tx.edgeProcessor);
-        return processor;
+        return new QueryProcessor<VertexCentricQuery,TitanRelation,SliceQuery>(constructQuery(returnType),tx.edgeProcessor);
     }
 
 
@@ -211,8 +208,6 @@ public class VertexCentricQueryBuilder extends AbstractVertexCentricQueryBuilder
     public Iterable<Edge> edges() {
         return (Iterable)titanEdges();
     }
-
-
 
     @Override
     public long count() {

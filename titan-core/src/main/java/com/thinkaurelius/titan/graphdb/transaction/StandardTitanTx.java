@@ -24,7 +24,6 @@ import com.thinkaurelius.titan.graphdb.idmanagement.IDInspector;
 import com.thinkaurelius.titan.graphdb.internal.*;
 import com.thinkaurelius.titan.graphdb.query.*;
 import com.thinkaurelius.titan.graphdb.query.condition.*;
-import com.thinkaurelius.titan.graphdb.relations.RelationIdentifier;
 import com.thinkaurelius.titan.graphdb.relations.StandardEdge;
 import com.thinkaurelius.titan.graphdb.relations.StandardProperty;
 import com.thinkaurelius.titan.graphdb.transaction.addedrelations.AddedRelationsContainer;
@@ -50,7 +49,6 @@ import com.thinkaurelius.titan.graphdb.util.VertexCentricEdgeIterable;
 import com.thinkaurelius.titan.graphdb.vertices.CacheVertex;
 import com.thinkaurelius.titan.graphdb.vertices.StandardVertex;
 import com.thinkaurelius.titan.util.datastructures.Retriever;
-import com.thinkaurelius.titan.util.stats.ObjectAccumulator;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.blueprints.Edge;
 import com.tinkerpop.blueprints.Vertex;
@@ -146,6 +144,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
      */
     private boolean isOpen;
 
+    private final Retriever<Long, InternalVertex> vertexRetriever;
 
     public StandardTitanTx(StandardTitanGraph graph, TransactionConfiguration config, BackendTransaction txHandle) {
         Preconditions.checkNotNull(graph);
@@ -187,13 +186,15 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         deletedRelations = EMPTY_DELETED_RELATIONS;
 
         this.isOpen = true;
+
+        this.vertexRetriever = new VertexConstructor(config.hasVerifyInternalVertexExistence());
     }
 
     /*
      * ------------------------------------ Utility Access Verification methods ------------------------------------
      */
 
-    private final void verifyWriteAccess(TitanVertex... vertices) {
+    private void verifyWriteAccess(TitanVertex... vertices) {
         if (config.isReadOnly())
             throw new UnsupportedOperationException("Cannot create new entities in read-only transaction");
         verifyAccess(vertices);
@@ -210,7 +211,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         }
     }
 
-    private final void verifyOpen() {
+    private void verifyOpen() {
         if (isClosed())
             throw new IllegalStateException("Operation cannot be executed because the enclosing transaction is closed");
     }
@@ -251,20 +252,15 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
     public TitanVertex getVertex(final long vertexid) {
         verifyOpen();
         if (vertexid <= 0 || !(idInspector.isTypeID(vertexid) || idInspector.isVertexID(vertexid))) return null;
-        InternalVertex v = vertexCache.get(vertexid,
-                config.hasVerifyExternalVertexExistence() ? uncertainVertexConstructor : existingVertexConstructor);
+        InternalVertex v = vertexCache.get(vertexid, vertexRetriever);
         if (v.isRemoved()) return null;
         else return v;
     }
 
     public InternalVertex getExistingVertex(final long vertexid) {
         //return vertex no matter what, even if deleted, and assume the id has the correct format
-        return vertexCache.get(vertexid, config.hasVerifyInternalVertexExistence() ? uncertainVertexConstructor : existingVertexConstructor);
+        return vertexCache.get(vertexid, vertexRetriever);
     }
-
-    private final Retriever<Long, InternalVertex> existingVertexConstructor = new VertexConstructor(false);
-    private final Retriever<Long, InternalVertex> uncertainVertexConstructor = new VertexConstructor(true);
-
 
     private class VertexConstructor implements Retriever<Long, InternalVertex> {
 
@@ -575,7 +571,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         verifyOpen();
         Long typeid = typeCache.get(name);
         if (typeid != null) {
-            return (TitanType) vertexCache.get(typeid, existingVertexConstructor);
+            return (TitanType) vertexCache.get(typeid, vertexRetriever);
         }
         if (SystemKey.KEY_MAP.containsKey(name)) {
             return SystemKey.KEY_MAP.get(name);
@@ -584,15 +580,17 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         }
     }
 
+    // this is critical path we can't allow anything heavier then assertion in here
     public TitanType getExistingType(long typeid) {
-        Preconditions.checkArgument(idInspector.isTypeID(typeid), "Provided id [%s] is not a type id", typeid);
-        if (SystemTypeManager.isSystemRelationType(typeid)) {
+        assert idInspector.isTypeID(typeid);
+
+        if (SystemTypeManager.isSystemRelationType(typeid))
             return SystemTypeManager.getSystemRelationType(typeid);
-        } else {
-            InternalVertex v = getExistingVertex(typeid);
-            Preconditions.checkArgument(v instanceof TitanType, "Given id is not a type: " + typeid);
-            return (TitanType) v;
-        }
+
+        InternalVertex v = getExistingVertex(typeid);
+        assert v instanceof TitanType;
+
+        return (TitanType) v;
     }
 
     @Override
@@ -675,8 +673,9 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
         @Override
         public Iterator<TitanRelation> getNew(final VertexCentricQuery query) {
-            if (query.getVertex().isNew() || (query.getVertex()).hasAddedRelations()) {
-                return (Iterator) (query.getVertex()).getAddedRelations(new Predicate<InternalRelation>() {
+            InternalVertex vertex = query.getVertex();
+            if (vertex.isNew() || vertex.hasAddedRelations()) {
+                return (Iterator) (vertex).getAddedRelations(new Predicate<InternalRelation>() {
                     //Need to filter out self-loops if query only asks for one direction
 
                     private TitanRelation previous = null;
@@ -685,9 +684,12 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
                     public boolean apply(@Nullable InternalRelation relation) {
                         if ((relation instanceof TitanEdge) && relation.isLoop()
                                 && query.getDirection() != Direction.BOTH) {
-                            if (relation.equals(previous)) return false;
-                            else previous = relation;
+                            if (relation.equals(previous))
+                                return false;
+
+                            previous = relation;
                         }
+
                         return query.matches(relation);
                     }
                 }).iterator();
@@ -703,16 +705,16 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
         @Override
         public boolean isDeleted(VertexCentricQuery query, TitanRelation result) {
-            return deletedRelations.containsKey(Long.valueOf(result.getID())) || result != ((InternalRelation) result).it();
+            return deletedRelations.containsKey(result.getID()) || result != ((InternalRelation) result).it();
         }
 
         @Override
         public Iterator<TitanRelation> execute(final VertexCentricQuery query, final SliceQuery sq, final Object exeInfo) {
-            if (query.getVertex().isNew()) return Iterators.emptyIterator();
+            if (query.getVertex().isNew())
+                return Iterators.emptyIterator();
 
             final boolean filterDirection = (exeInfo != null) ? (Boolean) exeInfo : false;
             final InternalVertex v = query.getVertex();
-            Iterable<TitanRelation> result = null;
 
             Iterable<Entry> iter = v.loadRelations(sq, new Retriever<SliceQuery, List<Entry>>() {
                 @Override
@@ -731,16 +733,12 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
                 });
             }
 
-            result = Iterables.transform(iter, new Function<Entry, TitanRelation>() {
-                @Nullable
+            return Iterables.transform(iter, new Function<Entry, TitanRelation>() {
                 @Override
                 public TitanRelation apply(@Nullable Entry entry) {
                     return edgeSerializer.readRelation(v, entry);
                 }
-            });
-
-
-            return result.iterator();
+            }).iterator();
         }
 
     };
@@ -848,7 +846,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
         @Override
         public Iterator<TitanElement> execute(final GraphCentricQuery query, final JointIndexQuery indexQuery, final Object exeInfo) {
-            Iterator<TitanElement> iter = null;
+            Iterator<TitanElement> iter;
             if (!indexQuery.isEmpty()) {
                 List<QueryUtil.IndexCall<Object>> retrievals = new ArrayList<QueryUtil.IndexCall<Object>>();
                 for (int i = 0; i < indexQuery.size(); i++) {
@@ -875,24 +873,37 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
                 List<Object> resultSet = QueryUtil.processIntersectingRetrievals(retrievals, indexQuery.getLimit());
                 iter = Iterators.transform(resultSet.iterator(), new Function<Object, TitanElement>() {
-                    @Nullable
                     @Override
                     public TitanElement apply(@Nullable Object id) {
                         Preconditions.checkNotNull(id);
-                        if (query.getResultType() == ElementType.VERTEX) return getExistingVertex((Long) id);
-                        else if (query.getResultType() == ElementType.EDGE)
-                            return (TitanElement) getEdge((RelationIdentifier) id);
-                        else throw new IllegalArgumentException("Unexpected id type: " + id);
+
+                        switch (query.getResultType()) {
+                            case VERTEX:
+                                return getExistingVertex((Long) id);
+
+                            case EDGE:
+                                return (TitanElement) getEdge(id);
+
+                            default:
+                                throw new IllegalArgumentException("Unexpected id type: " + id);
+                        }
                     }
                 });
             } else {
                 log.warn("Query requires iterating over all vertices [{}]. For better performance, use indexes", query.getCondition());
-                if (query.getResultType() == ElementType.VERTEX) {
-                    iter = (Iterator) getVertices().iterator();
-                } else if (query.getResultType() == ElementType.EDGE) {
-                    iter = (Iterator) getEdges().iterator();
-                } else throw new IllegalArgumentException("Unexpected type: " + query.getResultType());
+
+                switch (query.getResultType()) {
+                    case VERTEX:
+                        return (Iterator) getVertices().iterator();
+
+                    case EDGE:
+                        return (Iterator) getEdges().iterator();
+
+                    default:
+                        throw new IllegalArgumentException("Unexpected type: " + query.getResultType());
+                }
             }
+
             return iter;
         }
 

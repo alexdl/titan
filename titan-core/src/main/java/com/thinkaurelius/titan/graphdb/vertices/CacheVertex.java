@@ -37,44 +37,33 @@ public class CacheVertex extends StandardVertex {
 
     public CacheVertex(StandardTitanTx tx, long id, byte lifecycle) {
         super(tx, id, lifecycle);
+
+        relationCache = new ConcurrentSkipListSet<Entry>();
+        queryCache = new ConcurrentQueryCache();
     }
 
     @Override
     public Iterable<Entry> loadRelations(SliceQuery query, final Retriever<SliceQuery, List<Entry>> lookup) {
-        if (isNew()) return ImmutableList.of();
-        else {
-            if (null == queryCache) {
-                //Initialize datastructures
-                if (tx().getConfiguration().isSingleThreaded()) {
-                    relationCache = new ConcurrentSkipListSet<Entry>();
-                    queryCache = new ConcurrentQueryCache();
-                } else {
-                    synchronized (this) {
-                        if (null == queryCache) {
-                            relationCache = new ConcurrentSkipListSet<Entry>();
-                            queryCache = new ConcurrentQueryCache();
-                        }
-                    }
-                }
-            }
-            if (hasLoadedRelations(query)) {
-                SortedSet<Entry> results = relationCache.subSet(StaticBufferEntry.of(query.getSliceStart(), null),StaticBufferEntry.of(query.getSliceEnd(),null));
-                return results;
-            } else {
-                List<Entry> results = lookup.get(query);
-                relationCache.addAll(results);
-                if (query.hasLimit() && results.size()<query.getLimit()) {
-                    query = query.updateLimit(Query.NO_LIMIT);
-                }
-                queryCache.add(query);
-                return results;
-            }
+        if (isNew())
+            return ImmutableList.of();
+
+        if (hasLoadedRelations(query)) {
+            return relationCache.subSet(StaticBufferEntry.of(query.getSliceStart(), null), StaticBufferEntry.of(query.getSliceEnd(), null));
         }
+
+        List<Entry> results = lookup.get(query);
+        relationCache.addAll(results);
+        if (query.hasLimit() && results.size() < query.getLimit()) {
+            query = query.updateLimit(Query.NO_LIMIT);
+        }
+
+        queryCache.add(query);
+        return results;
     }
 
     @Override
     public boolean hasLoadedRelations(final SliceQuery query) {
-        return queryCache!=null && queryCache.isCovered(query);
+        return queryCache != null && queryCache.isCovered(query);
     }
 
 }

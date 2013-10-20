@@ -28,8 +28,8 @@ public class SliceQuery extends BaseQuery implements BackendQuery<SliceQuery> {
     protected int hashcode;
 
     public SliceQuery(final StaticBuffer sliceStart, final StaticBuffer sliceEnd, boolean isStatic) {
-        Preconditions.checkNotNull(sliceStart);
-        Preconditions.checkNotNull(sliceEnd);
+        assert sliceStart != null && sliceEnd != null;
+
         this.sliceStart = sliceStart;
         this.sliceEnd = sliceEnd;
         this.isStatic = isStatic;

@@ -1,6 +1,5 @@
 package com.thinkaurelius.titan.graphdb.query;
 
-import com.google.common.base.Preconditions;
 import com.thinkaurelius.titan.core.TitanRelation;
 import com.thinkaurelius.titan.diskstorage.keycolumnvalue.SliceQuery;
 import com.thinkaurelius.titan.graphdb.query.condition.Condition;
@@ -25,11 +24,11 @@ class BaseVertexCentricQuery extends BaseQuery {
                                   List<BackendQueryHolder<SliceQuery>> queries,
                                   int limit) {
         super(limit);
-        Preconditions.checkNotNull(condition);
-        Preconditions.checkArgument(QueryUtil.isQueryNormalForm(condition));
-        Preconditions.checkNotNull(queries);
-        Preconditions.checkNotNull(direction);
-        Preconditions.checkArgument(limit >= 0);
+        //Preconditions.checkNotNull(condition);
+        //Preconditions.checkArgument(QueryUtil.isQueryNormalForm(condition));
+        //Preconditions.checkNotNull(queries);
+        //Preconditions.checkNotNull(direction);
+        //Preconditions.checkArgument(limit >= 0);
         this.condition = condition;
         this.queries = queries;
         this.direction=direction;
@@ -46,7 +45,7 @@ class BaseVertexCentricQuery extends BaseQuery {
         this(new FixedCondition<TitanRelation>(false),Direction.BOTH, new ArrayList<BackendQueryHolder<SliceQuery>>(0),0);
     }
 
-    public static final BaseVertexCentricQuery emptyQuery() {
+    public static BaseVertexCentricQuery emptyQuery() {
         return new BaseVertexCentricQuery();
     }
 
