@@ -29,9 +29,9 @@ abstract class AbstractVertexCentricQueryBuilder implements BaseVertexQuery {
     protected final EdgeSerializer serializer;
     protected final StandardTitanTx tx;
 
-    private Direction dir;
-    private Set<String> types;
-    private List<PredicateCondition<String, TitanRelation>> constraints;
+    protected Direction dir;
+    protected final Set<String> types;
+    protected final List<PredicateCondition<String, TitanRelation>> constraints;
 
     private boolean includeHidden;
     private int limit = Query.NO_LIMIT;
@@ -206,9 +206,9 @@ abstract class AbstractVertexCentricQueryBuilder implements BaseVertexQuery {
         return null;
     }
 
-    private static final int DEFAULT_NO_LIMIT = 400;
-    private static final int MAX_BASE_LIMIT = 20000;
-    private static final int HARD_MAX_LIMIT = 50000;
+    private static final int DEFAULT_NO_LIMIT = 1024;
+    private static final int MAX_BASE_LIMIT   = 20000;
+    private static final int HARD_MAX_LIMIT   = 50000;
 
     protected BaseVertexCentricQuery constructQuery(RelationType returnType) {
         assert returnType != null;
@@ -227,12 +227,13 @@ abstract class AbstractVertexCentricQueryBuilder implements BaseVertexQuery {
 
         //Prepare constraints
         And<TitanRelation> conditions = QueryUtil.constraints2QNF(tx, constraints);
-        if (conditions == null) return BaseVertexCentricQuery.emptyQuery();
+        if (conditions == null)
+            return BaseVertexCentricQuery.emptyQuery();
 
         assert limit > 0;
-        int sliceLimit = limit;
-        if (sliceLimit == Query.NO_LIMIT) sliceLimit = DEFAULT_NO_LIMIT;
-        else sliceLimit = Math.min(sliceLimit, MAX_BASE_LIMIT);
+        int sliceLimit = (limit == Query.NO_LIMIT)
+                            ? DEFAULT_NO_LIMIT
+                            : Math.min(limit, MAX_BASE_LIMIT);
 
         //Construct (optimal) SliceQueries
         List<BackendQueryHolder<SliceQuery>> queries;
@@ -275,7 +276,7 @@ abstract class AbstractVertexCentricQueryBuilder implements BaseVertexQuery {
                     And<TitanRelation> remainingConditions = conditions;
                     boolean vertexConstraintApplies = type.getSortKey().length == 0 || conditions.hasChildren();
                     if (type.getSortKey().length > 0 && conditions.hasChildren()) {
-                        remainingConditions = conditions.clone();
+                        remainingConditions = conditions;
                         long[] sortKeys = type.getSortKey();
 
                         for (int i = 0; i < sortKeys.length; i++) {
@@ -415,8 +416,10 @@ abstract class AbstractVertexCentricQueryBuilder implements BaseVertexQuery {
                     }
                 }
             }
-            if (queries.isEmpty()) return BaseVertexCentricQuery.emptyQuery();
-            else conditions.add(getTypeCondition(ts));
+            if (queries.isEmpty())
+                return BaseVertexCentricQuery.emptyQuery();
+
+            conditions.add(getTypeCondition(ts));
         }
 
         return new BaseVertexCentricQuery(QueryUtil.simplifyQNF(conditions), dir, queries, limit);

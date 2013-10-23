@@ -18,14 +18,14 @@ public class IncidenceCondition<E extends TitanRelation> extends Literal<E> {
     public IncidenceCondition(TitanVertex baseVertex, TitanVertex otherVertex) {
         Preconditions.checkNotNull(baseVertex);
         Preconditions.checkNotNull(otherVertex);
+
         this.baseVertex = baseVertex;
         this.otherVertex = otherVertex;
     }
 
     @Override
     public boolean evaluate(E relation) {
-        if (!relation.isEdge()) return false;
-        return ((TitanEdge)relation).getOtherVertex(baseVertex).equals(otherVertex);
+        return relation.isEdge() && ((TitanEdge) relation).getOtherVertex(baseVertex).equals(otherVertex);
     }
 
     @Override
@@ -35,9 +35,12 @@ public class IncidenceCondition<E extends TitanRelation> extends Literal<E> {
 
     @Override
     public boolean equals(Object other) {
-        if (this==other) return true;
-        else if (other==null) return false;
-        else if (!getClass().isInstance(other)) return false;
+        if (this == other)
+            return true;
+
+        else if (other==null || !(other instanceof IncidenceCondition))
+            return false;
+
         IncidenceCondition oth = (IncidenceCondition)other;
         return baseVertex.equals(oth.baseVertex) && otherVertex.equals(oth.otherVertex);
     }

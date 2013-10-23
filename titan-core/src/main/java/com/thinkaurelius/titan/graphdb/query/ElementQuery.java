@@ -2,6 +2,7 @@ package com.thinkaurelius.titan.graphdb.query;
 
 import com.thinkaurelius.titan.core.TitanElement;
 
+import java.util.Collection;
 import java.util.Comparator;
 
 /**
@@ -21,6 +22,8 @@ public interface ElementQuery<R extends TitanElement,B extends BackendQuery<B>> 
     public boolean isEmpty();
 
     public int numSubQueries();
+
+    public Collection<BackendQueryHolder<B>> getSubQueries();
 
     /**
      * Returns the backend query at the given position that comprises this ElementQuery

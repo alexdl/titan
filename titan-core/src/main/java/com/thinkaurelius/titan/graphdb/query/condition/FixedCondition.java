@@ -27,10 +27,13 @@ public class FixedCondition<E extends TitanElement> extends Literal<E> {
 
     @Override
     public boolean equals(Object other) {
-        if (this==other) return true;
-        else if (other==null) return false;
-        else if (!getClass().isInstance(other)) return false;
-        return value==((FixedCondition)other).value;
+        if (this == other)
+            return true;
+
+        if (other == null || !(other instanceof FixedCondition))
+            return false;
+
+        return value == ((FixedCondition) other).value;
     }
 
     @Override

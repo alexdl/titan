@@ -104,21 +104,20 @@ public class QueryProcessor<Q extends ElementQuery<R, B>, R extends TitanElement
         Iterator<R> iter = null;
         boolean hasDeletions = executor.hasDeletions(query);
         Iterator<R> newElements = executor.getNew(query);
+
         if (query.isSorted()) {
-            for (int i = query.numSubQueries() - 1; i >= 0; i--) {
-                BackendQueryHolder<B> subq = query.getSubQuery(i);
-                Iterator<R> subqiter;
-                if (subq.isSorted()) {
-                    subqiter = new LimitAdjustingIterator(subq);
-                } else {
-                    subqiter = new PreSortingIterator(subq);
-                }
-                subqiter = getFilterIterator(subqiter, hasDeletions, !subq.isFitted());
+            for (BackendQueryHolder<B> subQuery : query.getSubQueries()) {
+                Iterator<R> subqiter = (subQuery.isSorted())
+                                        ? new LimitAdjustingIterator(subQuery)
+                                        : new PreSortingIterator(subQuery);
+
+                subqiter = getFilterIterator(subqiter, hasDeletions, !subQuery.isFitted());
 
                 if (iter == null) iter = subqiter;
                 else iter = new MergeSortIterator<R>(subqiter, iter, query.getSortOrder(), query.hasDuplicateResults());
             }
-            Preconditions.checkArgument(iter != null, "Query without sub-queries: %s", query);
+
+            assert iter != null;
 
             if (newElements.hasNext()) {
                 final List<R> allNew = Lists.newArrayList(newElements);
@@ -136,7 +135,7 @@ public class QueryProcessor<Q extends ElementQuery<R, B>, R extends TitanElement
             List<Iterator<R>> iters = new ArrayList<Iterator<R>>(query.numSubQueries());
             for (int i = 0; i < query.numSubQueries(); i++) {
                 BackendQueryHolder<B> subq = query.getSubQuery(i);
-                Iterator subiter = new LimitAdjustingIterator(subq);
+                Iterator<R> subiter = new LimitAdjustingIterator(subq);
                 subiter = getFilterIterator(subiter, hasDeletions, !subq.isFitted());
                 if (!allNew.isEmpty()) {
                     subiter = Iterators.filter(subiter, new Predicate<R>() {
@@ -170,7 +169,7 @@ public class QueryProcessor<Q extends ElementQuery<R, B>, R extends TitanElement
         return iter;
     }
 
-    private final Iterator<R> getFilterIterator(final Iterator<R> iter, final boolean filterDeletions, final boolean filterMatches) {
+    private Iterator<R> getFilterIterator(final Iterator<R> iter, final boolean filterDeletions, final boolean filterMatches) {
         if (filterDeletions || filterMatches) {
             return Iterators.filter(iter, new Predicate<R>() {
                 @Override
@@ -242,8 +241,10 @@ public class QueryProcessor<Q extends ElementQuery<R, B>, R extends TitanElement
             backendQuery = backendQuery.updateLimit(currentLimit);
             iter = executor.execute(query, backendQuery, executionInfo);
 
+            // TODO: this is very-very bad, we at least should try to do that in parallel
             for (int i = 0; i < count; i++)
                 iter.next();
+
             Preconditions.checkArgument(count < currentLimit);
             return hasNext();
         }

@@ -25,6 +25,9 @@ public class StaticBufferEntry implements Entry {
         this.value = value;
     }
 
+    public static Entry of(StaticBuffer column) {
+        return new StaticBufferEntry(column, NO_VALUE);
+    }
     public static Entry of(StaticBuffer column, StaticBuffer value) {
         return new StaticBufferEntry(column,value);
     }

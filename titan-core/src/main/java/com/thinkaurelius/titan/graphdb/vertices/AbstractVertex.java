@@ -246,7 +246,7 @@ public abstract class AbstractVertex extends AbstractElement implements Internal
         if (!tx().containsType(key)) return null;
         else return removeProperty(tx().getPropertyKey(key));
     }
-    
+
     @Override
     public boolean equals(Object other) {
         if (other == null)
@@ -254,12 +254,11 @@ public abstract class AbstractVertex extends AbstractElement implements Internal
 
         if (this == other)
             return true;
-        
+
         try {
-            return getID() == ((AbstractVertex)other).getID();
+            return id == ((AbstractVertex) other).id;
         } catch (ClassCastException e) {
             return super.equals(other);
         }
     }
-
 }

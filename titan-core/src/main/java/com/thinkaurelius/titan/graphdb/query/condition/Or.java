@@ -17,19 +17,6 @@ public class Or<E extends TitanElement> extends MultiCondition<E> {
         super(size);
     }
 
-    public Or() {
-        super();
-    }
-
-    private Or(And<E> clone) {
-        super(clone);
-    }
-
-    @Override
-    public Or<E> clone() {
-        return new Or<E>(this);
-    }
-
     @Override
     public Type getType() {
         return Type.OR;

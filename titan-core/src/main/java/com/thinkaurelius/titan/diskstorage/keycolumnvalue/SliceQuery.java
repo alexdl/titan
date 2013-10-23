@@ -102,7 +102,7 @@ public class SliceQuery extends BaseQuery implements BackendQuery<SliceQuery> {
             return sliceStart.compareTo(oth.sliceStart) == 0 && sliceEnd.compareTo(oth.sliceEnd) >= 0;
     }
 
-    public static final StaticBuffer pointRange(StaticBuffer point) {
+    public static StaticBuffer pointRange(StaticBuffer point) {
         return ByteBufferUtil.nextBiggerBuffer(point);
     }
 

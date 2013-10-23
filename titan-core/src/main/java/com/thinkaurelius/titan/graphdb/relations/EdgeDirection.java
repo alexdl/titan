@@ -10,7 +10,6 @@ import com.tinkerpop.blueprints.Direction;
  * @author Matthias Broecheler (me@matthiasb.com);
  */
 public class EdgeDirection {
-
     public static final Direction[] PROPER_DIRS = {Direction.IN, Direction.OUT};
 
     public static boolean impliedBy(Direction sub, Direction sup) {
@@ -18,9 +17,16 @@ public class EdgeDirection {
     }
 
     public static Direction fromPosition(int pos) {
-        if (pos==0) return Direction.OUT;
-        else if (pos==1) return Direction.IN;
-        else throw new IllegalArgumentException("Invalid position:" + pos);
+        switch (pos) {
+            case 0:
+                return Direction.OUT;
+
+            case 1:
+                return Direction.IN;
+
+            default:
+                throw new IllegalArgumentException("Invalid position:" + pos);
+        }
     }
 
     public static int position(Direction dir) {
@@ -39,7 +45,4 @@ public class EdgeDirection {
     public static boolean isProperDirection(Direction dir) {
         return dir==Direction.IN || dir==Direction.OUT;
     }
-
-
-
 }

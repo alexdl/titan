@@ -2,6 +2,7 @@ package com.thinkaurelius.titan.graphdb.query;
 
 import com.google.common.base.Preconditions;
 import com.thinkaurelius.titan.core.TitanElement;
+import com.thinkaurelius.titan.diskstorage.keycolumnvalue.SliceQuery;
 import com.thinkaurelius.titan.graphdb.internal.ElementType;
 import com.thinkaurelius.titan.graphdb.internal.OrderList;
 import com.thinkaurelius.titan.graphdb.query.condition.Condition;
@@ -9,6 +10,8 @@ import com.thinkaurelius.titan.graphdb.query.condition.FixedCondition;
 import org.apache.commons.collections.comparators.ComparableComparator;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 
 /**
@@ -88,6 +91,11 @@ public class GraphCentricQuery extends BaseQuery implements ElementQuery<TitanEl
     @Override
     public int numSubQueries() {
         return 1;
+    }
+
+    @Override
+    public Collection<BackendQueryHolder<JointIndexQuery>> getSubQueries() {
+        return Collections.singleton(indexQuery);
     }
 
     @Override

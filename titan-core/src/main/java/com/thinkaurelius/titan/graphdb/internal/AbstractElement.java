@@ -13,7 +13,7 @@ import com.thinkaurelius.titan.core.TitanVertex;
  */
 public abstract class AbstractElement implements InternalElement {
 
-    private long id;
+    protected long id;
 
     public AbstractElement(long id) {
         assert id != 0;

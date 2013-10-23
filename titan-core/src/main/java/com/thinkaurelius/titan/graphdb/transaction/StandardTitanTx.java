@@ -58,9 +58,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -257,7 +255,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         else return v;
     }
 
-    public InternalVertex getExistingVertex(final long vertexid) {
+    public InternalVertex getExistingVertex(long vertexid) {
         //return vertex no matter what, even if deleted, and assume the id has the correct format
         return vertexCache.get(vertexid, vertexRetriever);
     }
@@ -569,15 +567,18 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
     @Override
     public TitanType getType(String name) {
         verifyOpen();
-        Long typeid = typeCache.get(name);
-        if (typeid != null) {
-            return (TitanType) vertexCache.get(typeid, vertexRetriever);
+
+        Long typeId = typeCache.get(name);
+        if (typeId != null) {
+            InternalVertex typeVertex = vertexCache.get(typeId, vertexRetriever);
+            if (typeVertex != null)
+                return (TitanType) typeVertex;
         }
-        if (SystemKey.KEY_MAP.containsKey(name)) {
-            return SystemKey.KEY_MAP.get(name);
-        } else {
-            return (TitanType) Iterables.getOnlyElement(getVertices(SystemKey.TypeName, name), null);
-        }
+
+        TitanType type = SystemKey.KEY_MAP.get(name);
+        return (type != null)
+                ? type
+                : (TitanType) Iterables.getOnlyElement(getVertices(SystemKey.TypeName, name), null);
     }
 
     // this is critical path we can't allow anything heavier then assertion in here
@@ -670,12 +671,11 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
     }
 
     public final QueryExecutor<VertexCentricQuery, TitanRelation, SliceQuery> edgeProcessor = new QueryExecutor<VertexCentricQuery, TitanRelation, SliceQuery>() {
-
         @Override
         public Iterator<TitanRelation> getNew(final VertexCentricQuery query) {
             InternalVertex vertex = query.getVertex();
             if (vertex.isNew() || vertex.hasAddedRelations()) {
-                return (Iterator) (vertex).getAddedRelations(new Predicate<InternalRelation>() {
+                return (Iterator) vertex.getAddedRelations(new Predicate<InternalRelation>() {
                     //Need to filter out self-loops if query only asks for one direction
 
                     private TitanRelation previous = null;
@@ -740,13 +740,12 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
                 }
             }).iterator();
         }
-
     };
 
 
     public final QueryExecutor<GraphCentricQuery, TitanElement, JointIndexQuery> elementProcessor = new QueryExecutor<GraphCentricQuery, TitanElement, JointIndexQuery>() {
 
-        private final PredicateCondition<TitanKey, TitanElement> getEqualityCondition(Condition<TitanElement> condition) {
+        private PredicateCondition<TitanKey, TitanElement> getEqualityCondition(Condition<TitanElement> condition) {
             if (condition instanceof PredicateCondition) {
                 PredicateCondition<TitanKey, TitanElement> pc = (PredicateCondition) condition;
                 if (pc.getPredicate() == Cmp.EQUAL && isVertexIndexProperty(pc.getKey())) return pc;

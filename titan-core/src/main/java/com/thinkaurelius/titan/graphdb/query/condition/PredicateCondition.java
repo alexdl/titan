@@ -22,21 +22,22 @@ public class PredicateCondition<K, E extends TitanElement> extends Literal<E> {
 
     public PredicateCondition(K key, TitanPredicate predicate, Object value) {
         Preconditions.checkNotNull(key);
-        Preconditions.checkArgument(key instanceof String || key instanceof TitanType, "Key must either be a string or type, but was given: %s", key);
+        Preconditions.checkArgument(key instanceof String || key instanceof TitanType);
         Preconditions.checkNotNull(predicate);
+
         this.key = key;
         this.predicate = predicate;
         this.value = value;
     }
 
 
-    private final boolean satisfiesCondition(Object value) {
+    private boolean satisfiesCondition(Object value) {
         return predicate.evaluate(value, this.value);
     }
 
     @Override
     public boolean evaluate(E element) {
-        TitanType type = null;
+        TitanType type;
         if (key instanceof String) {
             type = ((InternalElement) element).tx().getType((String) key);
             if (type == null) return satisfiesCondition(null);
@@ -80,9 +81,12 @@ public class PredicateCondition<K, E extends TitanElement> extends Literal<E> {
 
     @Override
     public boolean equals(Object other) {
-        if (this == other) return true;
-        else if (other == null) return false;
-        else if (!getClass().isInstance(other)) return false;
+        if (this == other)
+            return true;
+
+        if (other == null || !(other instanceof PredicateCondition))
+            return false;
+
         PredicateCondition oth = (PredicateCondition) other;
         return key.equals(oth.key) && predicate.equals(oth.predicate) && value.equals(oth.value);
     }
@@ -92,7 +96,7 @@ public class PredicateCondition<K, E extends TitanElement> extends Literal<E> {
         return key.toString() + " " + predicate.toString() + " " + String.valueOf(value);
     }
 
-    public static final <K, E extends TitanElement> PredicateCondition<K, E> of(K key, TitanPredicate titanPredicate, Object condition) {
+    public static <K, E extends TitanElement> PredicateCondition<K, E> of(K key, TitanPredicate titanPredicate, Object condition) {
         return new PredicateCondition<K, E>(key, titanPredicate, condition);
     }
 

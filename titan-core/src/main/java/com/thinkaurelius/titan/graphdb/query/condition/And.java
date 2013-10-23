@@ -16,15 +16,6 @@ public class And<E extends TitanElement> extends MultiCondition<E> {
         super();
     }
 
-    private And(And<E> clone) {
-        super(clone);
-    }
-
-    @Override
-    public And<E> clone() {
-        return new And<E>(this);
-    }
-
     public And(int capacity) {
         super(capacity);
     }

@@ -1,9 +1,5 @@
 package com.thinkaurelius.titan.graphdb.query.condition;
 
-/**
- * @author Matthias Broecheler (me@matthiasb.com)
- */
-
 import com.thinkaurelius.titan.core.TitanElement;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
@@ -25,17 +21,10 @@ public abstract class MultiCondition<E extends TitanElement> extends ArrayList<C
 
     MultiCondition(final Condition<E>... conditions) {
         super(conditions.length);
-
-        assert conditions.length >= 0;
         for (Condition<E> condition : conditions) {
             assert condition != null;
             super.add(condition);
         }
-    }
-
-    MultiCondition(MultiCondition<E> cond) {
-        this(cond.size());
-        super.addAll(cond);
     }
 
     public boolean add(Condition<E> condition) {
@@ -65,11 +54,6 @@ public abstract class MultiCondition<E extends TitanElement> extends ArrayList<C
     public Iterable<Condition<E>> getChildren() {
         return this;
     }
-
-//    @Override
-//    public Type getType() {
-//        return Type.AND;
-//    }
 
     @Override
     public int hashCode() {

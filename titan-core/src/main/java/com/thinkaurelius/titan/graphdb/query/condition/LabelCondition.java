@@ -37,11 +37,7 @@ public class LabelCondition<E extends TitanRelation> extends Literal<E> {
 
     @Override
     public boolean equals(Object other) {
-        if (this==other) return true;
-        else if (other==null) return false;
-        else if (!getClass().isInstance(other)) return false;
-        LabelCondition oth = (LabelCondition)other;
-        return label.equals(oth.label);
+        return this == other || !(other == null || !(other instanceof LabelCondition)) && label.equals(((LabelCondition) other).label);
     }
 
     @Override
