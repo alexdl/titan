@@ -28,7 +28,6 @@ public class HazelcastCacheStore implements CacheStore {
 
     public HazelcastCacheStore(String name, HazelcastInstance manager) {
         this.cache = manager.getMap(name);
-        System.out.println("map " + cache + ", class => " + cache.getClass());
     }
 
     @Override
