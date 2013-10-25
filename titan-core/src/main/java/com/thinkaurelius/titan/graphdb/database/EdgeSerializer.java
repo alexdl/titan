@@ -64,21 +64,16 @@ public class EdgeSerializer {
         }
 
         if (header.type.isEdgeLabel()) {
-            byte position;
             switch (header.direction) {
                 case IN:
-                    position = (byte) 1;
-                    break;
+                    return new CacheEdge(header.relationId, (TitanLabel) header.type, header.otherVertex, vertex, (byte) 1, data);
 
                 case OUT:
-                    position = (byte) 0;
-                    break;
+                    return new CacheEdge(header.relationId, (TitanLabel) header.type, vertex, header.otherVertex, (byte) 0, data);
 
                 default:
                     throw new AssertionError();
             }
-
-            return new CacheEdge(header.relationId, (TitanLabel) header.type, header.otherVertex, vertex, position, data);
         }
 
         throw new AssertionError();
