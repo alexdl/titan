@@ -142,7 +142,10 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
      */
     private boolean isOpen;
 
-    private final Retriever<Long, InternalVertex> vertexRetriever;
+    private final Retriever<Long, InternalVertex> existingVertexRetriever = new VertexConstructor(false);
+
+    private final Retriever<Long, InternalVertex> externalVertexRetriever;
+    private final Retriever<Long, InternalVertex> internalVertexRetriever;
 
     public StandardTitanTx(StandardTitanGraph graph, TransactionConfiguration config, BackendTransaction txHandle) {
         Preconditions.checkNotNull(graph);
@@ -172,10 +175,10 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
             newVertexIndexEntries = new ConcurrentIndexCache();
         }
 
-        this.vertexRetriever = new VertexConstructor(config.hasVerifyInternalVertexExistence());
+        externalVertexRetriever = new VertexConstructor(config.hasVerifyExternalVertexExistence());
+        internalVertexRetriever = new VertexConstructor(config.hasVerifyInternalVertexExistence());
 
-//        for (SystemType st : SystemKey.values()) typeCache.put(st.getName(), st);
-        vertexCache = new LRUVertexCache(config.getVertexCacheSize(), concurrencyLevel, vertexRetriever);
+        vertexCache = new LRUVertexCache(config.getVertexCacheSize(), concurrencyLevel);
         indexCache = CacheBuilder.newBuilder().weigher(new Weigher<IndexQuery, List<Object>>() {
             @Override
             public int weigh(IndexQuery q, List<Object> r) {
@@ -250,15 +253,17 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
     @Override
     public TitanVertex getVertex(final long vertexid) {
         verifyOpen();
-        if (vertexid <= 0 || !(idInspector.isTypeID(vertexid) || idInspector.isVertexID(vertexid))) return null;
-        InternalVertex v = vertexCache.get(vertexid);
-        if (v.isRemoved()) return null;
-        else return v;
+
+        if (vertexid <= 0 || !(idInspector.isTypeID(vertexid) || idInspector.isVertexID(vertexid)))
+            return null;
+
+        InternalVertex v = vertexCache.get(vertexid, externalVertexRetriever);
+        return (v.isRemoved()) ? null : v;
     }
 
     public InternalVertex getExistingVertex(long vertexid) {
         //return vertex no matter what, even if deleted, and assume the id has the correct format
-        return vertexCache.get(vertexid);
+        return vertexCache.get(vertexid, internalVertexRetriever);
     }
 
     private class VertexConstructor implements Retriever<Long, InternalVertex> {
@@ -571,7 +576,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
         Long typeId = typeCache.get(name);
         if (typeId != null) {
-            InternalVertex typeVertex = vertexCache.get(typeId);
+            InternalVertex typeVertex = vertexCache.get(typeId, existingVertexRetriever);
             if (typeVertex != null)
                 return (TitanType) typeVertex;
         }

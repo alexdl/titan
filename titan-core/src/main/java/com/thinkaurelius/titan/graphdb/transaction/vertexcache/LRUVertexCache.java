@@ -2,11 +2,8 @@ package com.thinkaurelius.titan.graphdb.transaction.vertexcache;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
 
 import com.google.common.base.Preconditions;
-import com.google.common.cache.*;
-import com.google.common.collect.MapMaker;
 import com.thinkaurelius.titan.graphdb.internal.InternalVertex;
 import com.thinkaurelius.titan.util.datastructures.Retriever;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -15,11 +12,8 @@ public class LRUVertexCache implements VertexCache {
     private final NonBlockingHashMapLong<InternalVertex> volatileVertices;
     //private final ConcurrentMap<Long, InternalVertex> volatileVertices;
     //private final LoadingCache<Long, InternalVertex> cache;
-    private final Retriever<Long, InternalVertex> vertexRetriever;
 
-    public LRUVertexCache(final long capacity, final int concurrencyLevel, Retriever<Long, InternalVertex> retriever) {
-        vertexRetriever = retriever;
-
+    public LRUVertexCache(final long capacity, final int concurrencyLevel) {
         // this returns better map then standard ConcurrentHashMap, which is ConcurrentLinkedHashMap
         volatileVertices = new NonBlockingHashMapLong<InternalVertex>();
 
@@ -54,14 +48,14 @@ public class LRUVertexCache implements VertexCache {
     }
 
     @Override
-    public InternalVertex get(final long id) {
+    public InternalVertex get(final long id, final Retriever<Long, InternalVertex> retriever) {
         //return cache.getUnchecked(id);
 
         Long vertexId = Long.valueOf(id);
         InternalVertex vertex = volatileVertices.get(vertexId);
 
         if (vertex == null) {
-            InternalVertex newVertex = vertexRetriever.get(vertexId);
+            InternalVertex newVertex = retriever.get(vertexId);
             vertex = volatileVertices.putIfAbsent(vertexId, newVertex);
             if (vertex == null)
                 vertex = newVertex;
