@@ -5,56 +5,70 @@ import java.util.List;
 import java.util.concurrent.*;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.*;
 import com.google.common.collect.MapMaker;
 import com.thinkaurelius.titan.graphdb.internal.InternalVertex;
 import com.thinkaurelius.titan.util.datastructures.Retriever;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 
 public class LRUVertexCache implements VertexCache {
+    private final NonBlockingHashMapLong<InternalVertex> volatileVertices;
+    //private final ConcurrentMap<Long, InternalVertex> volatileVertices;
+    //private final LoadingCache<Long, InternalVertex> cache;
+    private final Retriever<Long, InternalVertex> vertexRetriever;
 
-    private final ConcurrentMap<Long, InternalVertex> volatileVertices;
-    //private final ConcurrentMap<Long, InternalVertex> cache;
+    public LRUVertexCache(final long capacity, final int concurrencyLevel, Retriever<Long, InternalVertex> retriever) {
+        vertexRetriever = retriever;
 
-    public LRUVertexCache(final long capacity, final int concurrencyLevel) {
-        volatileVertices = new MapMaker().concurrencyLevel(concurrencyLevel).makeMap();
-        //cache = new ConcurrentLinkedHashMap.Builder<Long, InternalVertex>().maximumWeightedCapacity(capacity).concurrencyLevel(concurrencyLevel).build();
+        // this returns better map then standard ConcurrentHashMap, which is ConcurrentLinkedHashMap
+        volatileVertices = new NonBlockingHashMapLong<InternalVertex>();
+
         /*
-        cache = CacheBuilder.newBuilder().maximumSize(capacity).concurrencyLevel(concurrencyLevel)
-                .removalListener(new RemovalListener<Long, InternalVertex>() {
-                    @Override
-                    public void onRemoval(RemovalNotification<Long, InternalVertex> notification) {
-                        //Should only get evicted based on size constraint
-                        //Preconditions.checkArgument(notification.getCause() == RemovalCause.SIZE || notification.getCause() == RemovalCause.EXPLICIT);
+        cache = CacheBuilder.newBuilder()
+                            .maximumSize(capacity)
+                            .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+                            .removalListener(RemovalListeners.asynchronous(new RemovalListener<Long, InternalVertex>() {
+                                @Override
+                                public void onRemoval(RemovalNotification<Long, InternalVertex> notification) {
+                                    if (notification.getKey() == null || notification.getValue() == null)
+                                        return;
 
-                        //if (notification.getKey() == null || notification.getValue() == null)
-                        //    return;
-
-                        //InternalVertex v = notification.getValue();
-                        //if (v.hasAddedRelations()) {
-                        //    volatileVertices.putIfAbsent(notification.getKey(), v);
-                        //}
-                    }
-                })
-                .build();*/
+                                    InternalVertex v = notification.getValue();
+                                    if (v.hasAddedRelations()) {
+                                        volatileVertices.putIfAbsent(notification.getKey(), v);
+                                    }
+                                }
+                            }, Executors.newFixedThreadPool(concurrencyLevel)))
+                            .build(new CacheLoader<Long, InternalVertex>() {
+                                @Override
+                                public InternalVertex load(Long vertexId) throws Exception {
+                                    InternalVertex newVertex = volatileVertices.get(vertexId);
+                                    return (newVertex == null) ? vertexRetriever.get(vertexId) : newVertex;
+                                }
+                            });*/
     }
 
     @Override
     public boolean contains(long id) {
-        return volatileVertices.containsKey(id);
+        return volatileVertices.containsKey(id);// || cache.getIfPresent(id) != null;
     }
 
     @Override
-    public InternalVertex get(final long id, final Retriever<Long, InternalVertex> constructor) {
+    public InternalVertex get(final long id) {
+        //return cache.getUnchecked(id);
+
         Long vertexId = Long.valueOf(id);
         InternalVertex vertex = volatileVertices.get(vertexId);
 
         if (vertex == null) {
-            InternalVertex newVertex = constructor.get(vertexId);
+            InternalVertex newVertex = vertexRetriever.get(vertexId);
             vertex = volatileVertices.putIfAbsent(vertexId, newVertex);
             if (vertex == null)
                 vertex = newVertex;
         }
 
         return vertex;
+
         /*try {
             return cache.get(id, new Callable<InternalVertex>() {
                 @Override
@@ -90,12 +104,9 @@ public class LRUVertexCache implements VertexCache {
         Preconditions.checkNotNull(vertex);
         Preconditions.checkArgument(vertexId != 0);
 
-        //Long id = Long.valueOf(vertexId);
-
-        volatileVertices.put(vertexId, vertex);
-
-        //if (vertex.isNew() || vertex.hasAddedRelations())
-        //    volatileVertices.put(id, vertex);
+        //if (vertex.isNew() || vertex.hasAddedRelations()) {
+            volatileVertices.put(vertexId, vertex);
+        //}
     }
 
     @Override
@@ -112,6 +123,6 @@ public class LRUVertexCache implements VertexCache {
     @Override
     public synchronized void close() {
         volatileVertices.clear();
-        //cache.clear();
+        //cache.invalidateAll();
     }
 }

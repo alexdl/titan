@@ -171,8 +171,11 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
             typeCache = new ConcurrentHashMap<String, Long>();
             newVertexIndexEntries = new ConcurrentIndexCache();
         }
+
+        this.vertexRetriever = new VertexConstructor(config.hasVerifyInternalVertexExistence());
+
 //        for (SystemType st : SystemKey.values()) typeCache.put(st.getName(), st);
-        vertexCache = new LRUVertexCache(config.getVertexCacheSize(), concurrencyLevel);
+        vertexCache = new LRUVertexCache(config.getVertexCacheSize(), concurrencyLevel, vertexRetriever);
         indexCache = CacheBuilder.newBuilder().weigher(new Weigher<IndexQuery, List<Object>>() {
             @Override
             public int weigh(IndexQuery q, List<Object> r) {
@@ -184,8 +187,6 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
         deletedRelations = EMPTY_DELETED_RELATIONS;
 
         this.isOpen = true;
-
-        this.vertexRetriever = new VertexConstructor(config.hasVerifyInternalVertexExistence());
     }
 
     /*
@@ -250,14 +251,14 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
     public TitanVertex getVertex(final long vertexid) {
         verifyOpen();
         if (vertexid <= 0 || !(idInspector.isTypeID(vertexid) || idInspector.isVertexID(vertexid))) return null;
-        InternalVertex v = vertexCache.get(vertexid, vertexRetriever);
+        InternalVertex v = vertexCache.get(vertexid);
         if (v.isRemoved()) return null;
         else return v;
     }
 
     public InternalVertex getExistingVertex(long vertexid) {
         //return vertex no matter what, even if deleted, and assume the id has the correct format
-        return vertexCache.get(vertexid, vertexRetriever);
+        return vertexCache.get(vertexid);
     }
 
     private class VertexConstructor implements Retriever<Long, InternalVertex> {
@@ -570,7 +571,7 @@ public class StandardTitanTx extends TitanBlueprintsTransaction {
 
         Long typeId = typeCache.get(name);
         if (typeId != null) {
-            InternalVertex typeVertex = vertexCache.get(typeId, vertexRetriever);
+            InternalVertex typeVertex = vertexCache.get(typeId);
             if (typeVertex != null)
                 return (TitanType) typeVertex;
         }

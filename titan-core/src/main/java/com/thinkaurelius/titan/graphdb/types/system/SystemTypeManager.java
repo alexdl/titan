@@ -2,7 +2,6 @@ package com.thinkaurelius.titan.graphdb.types.system;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.thinkaurelius.titan.graphdb.idmanagement.IDManager;
 
 import java.util.Map;
 import java.util.Set;
